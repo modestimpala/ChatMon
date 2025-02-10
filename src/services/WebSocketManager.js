@@ -154,6 +154,21 @@ export class WebSocketManager {
       throw error;
     }
 
+    ws.on("message", (data) => {
+      // Log attempted message and IP for monitoring
+      console.warn("[WebSocketManager] Received unexpected message from client:", {
+          ip: ip,
+          channel: channel,
+          length: data.length
+      });
+      
+      // Immediately close connection if they try to send data
+      console.log("[WebSocketManager] Closing connection due to unexpected message");
+      ws.close(1008, "Message not allowed");
+      this.cleanupConnection(channel, ws, ip);
+  });
+  
+
     ws.on("close", () => {
       this.cleanupConnection(channel, ws, ip);
     });
