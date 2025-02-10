@@ -34,6 +34,11 @@ export const config = {
 npm start
 ```
 
+## Current Limitations
+
+- No support for Twitch emote modifiers (e.g. `:tf:` for `:tf:1:`)
+- Limited support for 7TV emotes (animated wide emotes seem to have issues)
+
 
 ## License
 
