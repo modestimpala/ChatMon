@@ -19,14 +19,17 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
         #chat-container {
             flex: 1;
             border: 4px solid #00FF00;
-            display: flex;
-            flex-direction: column;
             margin: 1rem;
+            overflow: hidden;
+            position: relative;
+            display: grid;
+            grid-template-rows: auto 1fr;
         }
 
         #status-bar {
@@ -37,15 +40,20 @@
         }
 
         #messages {
-            flex: 1;
             padding: 0.5rem;
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-auto-rows: min-content;
+            align-content: end;
+            overflow: hidden;
         }
 
         .message {
             padding: 0.25rem 1rem;
             line-height: 1.5;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+            flex-shrink: 0;
         }
 
         .message:hover {
@@ -58,6 +66,7 @@
             height: 18px;
             margin: 0 2px;
             vertical-align: middle;
+            flex-shrink: 0;
         }
 
         .emote {
@@ -66,10 +75,12 @@
             margin: 0 2px;
             max-height: 18px;
             object-fit: contain;
+            flex-shrink: 0;
         }
 
         .username {
             font-weight: bold;
+            white-space: nowrap;
         }
 
         ::-webkit-scrollbar {
