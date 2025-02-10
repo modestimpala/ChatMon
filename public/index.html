@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitch Chat Viewer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: monospace;
+        }
+
+        body {
+            background-color: #000;
+            color: #00FF00;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #chat-container {
+            flex: 1;
+            border: 4px solid #00FF00;
+            display: flex;
+            flex-direction: column;
+            margin: 1rem;
+        }
+
+        #status-bar {
+            border-bottom: 4px solid #00FF00;
+            padding: 0.5rem;
+            font-weight: bold;
+            font-size: 1.125rem;
+        }
+
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+
+        .message {
+            padding: 0.25rem 1rem;
+            line-height: 1.5;
+        }
+
+        .message:hover {
+            background-color: rgba(0, 255, 0, 0.1);
+        }
+
+        .badge {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            margin: 0 2px;
+            vertical-align: middle;
+        }
+
+        .emote {
+            display: inline-block;
+            vertical-align: middle;
+            margin: 0 2px;
+            min-width: 28px;
+            min-height: 28px;
+            max-height: 32px; 
+            object-fit: contain;
+        }
+
+        /* Add specific provider classes if needed 
+        .emote.bttv {
+             BTTV-specific styling if needed 
+        }
+
+        .emote.twitch {
+            Twitch-specific styling if needed 
+        }   
+        */
+
+        .username {
+            font-weight: bold;
+        }
+
+        ::-webkit-scrollbar {
+            width: 16px;
+            height: 16px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #000000;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #FFFFFF;
+            border: 4px solid #000000;
+        }
+        ::-webkit-scrollbar-corner {
+            background: #000000;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="status-bar">Connecting...</div>
+        <div id="messages"></div>
+    </div>
+
+    <script>
+        var DEFAULT_COLORS = [
+            '#FF0000', '#0000FF', '#00FF00', '#B22222', '#FF7F50',
+            '#9ACD32', '#FF4500', '#2E8B57', '#DAA520', '#D2691E',
+            '#5F9EA0', '#1E90FF', '#FF69B4', '#8A2BE2', '#00FF7F'
+        ];
+    
+        function ChatViewer() {
+            this.messagesContainer = document.getElementById('messages');
+            this.statusBar = document.getElementById('status-bar');
+            this.reconnectAttempts = 0;
+            this.maxReconnectAttempts = 5;
+            this.reconnectDelay = 2000;
+            this.setupWebSocket();
+        }
+    
+        ChatViewer.prototype.setupWebSocket = function() {
+            var channelName = window.location.pathname.split('/')[1] ? 
+                window.location.pathname.split('/')[1].toLowerCase() : '';
+            if (!channelName) {
+                this.statusBar.textContent = 'Error: No channel specified';
+                return;
+            }
+    
+            var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            var wsUrl = protocol + '//' + window.location.host + '/ws/' + channelName;
+    
+            this.ws = new WebSocket(wsUrl);
+    
+            var self = this; // Preserve context for callbacks
+            this.ws.onopen = function() {
+                self.statusBar.textContent = 'Connected to ' + channelName + "'s chat";
+                self.reconnectAttempts = 0;
+            };
+    
+            this.ws.onmessage = function(event) {
+                var message = JSON.parse(event.data);
+                self.addMessage(message);
+            };
+    
+            this.ws.onclose = function() {
+                self.statusBar.textContent = 'Connection closed. Reconnecting...';
+                self.handleReconnect();
+            };
+    
+            this.ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                self.ws.close();
+            };
+        };
+    
+        ChatViewer.prototype.handleReconnect = function() {
+            if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                var self = this;
+                setTimeout(function() {
+                    self.setupWebSocket();
+                }, this.reconnectDelay);
+                this.reconnectDelay *= 1.5; // Exponential backoff
+            } else {
+                this.statusBar.textContent = 'Connection failed. Please refresh the page.';
+            }
+        };
+    
+        ChatViewer.prototype.getEmoteUrl = function(emote) {
+            // Handle different emote providers
+            if (emote.provider !== 'twitch') {
+                return emote.imageSet['1x']; // Use provided image set
+            } else {
+                // Default Twitch emote handling
+                return 'https://static-cdn.jtvnw.net/emoticons/v2/' + emote.emoteId + 
+                    '/default/dark/1.0';
+            }
+        };
+    
+        ChatViewer.prototype.addMessage = function(message) {
+            var messageElement = document.createElement('div');
+            messageElement.className = 'message';
+    
+            // Add badges
+            if (message.badges) {
+                for (var i = 0; i < message.badges.length; i++) {
+                    var badge = message.badges[i];
+                    var badgeImg = document.createElement('img');
+                    badgeImg.className = 'badge';
+                    badgeImg.src = badge.image + '3';
+                    badgeImg.alt = badge.title;
+                    messageElement.appendChild(badgeImg);
+                }
+            }
+    
+            // Add username
+            var usernameSpan = document.createElement('span');
+            usernameSpan.className = 'username';
+            usernameSpan.style.color = message.color || this.getRandomColor(message.userId);
+            usernameSpan.textContent = message.user;
+            messageElement.appendChild(usernameSpan);
+            messageElement.appendChild(document.createTextNode(': '));
+    
+            // Process message content with emotes
+            if (message.emotes && message.emotes.length > 0) {
+                this.addMessageWithEmotes(messageElement, message.content, message.emotes);
+            } else {
+                messageElement.appendChild(document.createTextNode(message.content));
+            }
+    
+            this.messagesContainer.appendChild(messageElement);
+            this.scrollToBottom();
+        };
+    
+        ChatViewer.prototype.addMessageWithEmotes = function(container, content, emotes) {
+            var lastIndex = 0;
+            var sortedEmotes = emotes.slice().sort(function(a, b) {
+                return a.start - b.start;
+            });
+
+            for (var i = 0; i < sortedEmotes.length; i++) {
+                var emote = sortedEmotes[i];
+
+                // Add text before emote
+                if (emote.start > lastIndex) {
+                    container.appendChild(
+                        document.createTextNode(
+                            content.slice(lastIndex, emote.start)
+                        )
+                    );
+                }
+
+                // Add emote
+                var emoteImg = document.createElement('img');
+                emoteImg.className = 'emote';
+                emoteImg.src = this.getEmoteUrl(emote);
+                emoteImg.alt = emote.code || content.slice(emote.start, emote.end + 1);
+                
+                // Add tooltip if available
+                if (emote.tooltip) {
+                    emoteImg.title = emote.tooltip;
+                }
+
+                container.appendChild(emoteImg);
+
+                lastIndex = emote.end + 1;
+            }
+
+            // Add remaining text
+            if (lastIndex < content.length) {
+                container.appendChild(
+                    document.createTextNode(
+                        content.slice(lastIndex)
+                    )
+                );
+            }
+        };
+    
+        ChatViewer.prototype.getRandomColor = function(userId) {
+            var colorIndex = parseInt(userId, 10) % DEFAULT_COLORS.length;
+            return DEFAULT_COLORS[colorIndex];
+        };
+    
+        ChatViewer.prototype.scrollToBottom = function() {
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        };
+    
+        // Initialize chat viewer when page loads
+        window.addEventListener('load', function() {
+            new ChatViewer();
+        });
+    </script>
+    
+</body>
+</html>
