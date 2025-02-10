@@ -13,6 +13,7 @@ const server = http.createServer(app);
 
 // Initialize WebSocket Manager
 const wsManager = new WebSocketManager(server);
+wsManager.initialize();  
 
 // Serve static files
 app.use(express.static(path.join(__dirname, "../public")));
