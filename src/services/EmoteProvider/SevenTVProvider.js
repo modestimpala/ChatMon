@@ -27,16 +27,10 @@ export class SevenTVProvider extends BaseEmoteProvider {
       }
 
       const data = await response.json();
-      console.log("[7TV] Raw global emotes response:", data);
-
+      
       this.globalEmotes = this.parseEmoteSet(data.emotes, true);
       console.log("[7TV] Global emotes loaded:", {
-        count: this.globalEmotes.size,
-        emotes: Array.from(this.globalEmotes.entries()).map(([code, emote]) => ({
-          code,
-          id: emote.id,
-          url: emote.imageSet["1x"],
-        })),
+        count: this.globalEmotes.size
       });
     } catch (error) {
       console.error("[7TV] Error initializing provider:", error);
@@ -67,20 +61,14 @@ export class SevenTVProvider extends BaseEmoteProvider {
       }
 
       const data = await response.json();
-      console.log("[7TV] Raw channel emotes response:", data);
-
+      
       const emoteSet = data.emote_set;
       const emotes = this.parseEmoteSet(emoteSet.emotes, false);
       this.channelEmotes.set(channelId, emotes);
 
       console.log("[7TV] Channel emotes loaded:", {
         channelId,
-        count: emotes.size,
-        emotes: Array.from(emotes.entries()).map(([code, emote]) => ({
-          code,
-          id: emote.id,
-          url: emote.imageSet["1x"],
-        })),
+        count: emotes.size
       });
 
       return emotes;
@@ -111,7 +99,6 @@ export class SevenTVProvider extends BaseEmoteProvider {
         continue;
       }
 
-      console.log("[7TV] Parsing emote:", activeEmote);
       const emote = this.createEmote(activeEmote, emoteData, isGlobal);
       emoteMap.set(emote.code, emote);
     }
@@ -149,13 +136,6 @@ export class SevenTVProvider extends BaseEmoteProvider {
       zeroWidth: isZeroWidth,
     };
 
-    console.log("[7TV] Created emote:", {
-      code: emote.code,
-      id: emote.id,
-      isGlobal,
-      urls: emote.imageSet,
-    });
-
     return emote;
   }
 
@@ -163,13 +143,6 @@ export class SevenTVProvider extends BaseEmoteProvider {
     const type = isGlobal ? "Global" : "Channel";
     const authorName = author || "<deleted>";
     const tooltip = `${name}<br>${type} 7TV Emote<br>By: ${authorName}`;
-
-    console.log("[7TV] Created tooltip:", {
-      emoteName: name,
-      type,
-      author: authorName,
-      tooltip,
-    });
 
     return tooltip;
   }
