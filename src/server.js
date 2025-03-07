@@ -1,4 +1,5 @@
 import express from "express";
+import bodyParser from "express";
 import path from "path";
 import http from "http";
 import { fileURLToPath } from "url";
@@ -9,6 +10,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+app.use(bodyParser.json());
 const server = http.createServer(app);
 
 // Initialize WebSocket Manager
@@ -18,7 +21,17 @@ wsManager.initialize();
 // Serve static files
 app.use(express.static(path.join(__dirname, "../public")));
 
-// Handle all routes
+// Add a simple health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).send('Service is running');
+});
+
+// Handle chat page routes specifically
+app.get("/chatmon/:channel", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/index.html"));
+});
+
+// Catch-all route
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/index.html"));
 });
