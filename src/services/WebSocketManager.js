@@ -20,6 +20,17 @@ export class WebSocketManager {
       reconnectTimeWindow: 60000,  // 1 minute
     };
 
+    this.statusMessageQueue = new Map(); // Channel -> Queue of messages
+    this.statusMessageTimers = new Map(); // Channel -> Timer ID
+    
+    // Configuration for status messages
+    this.statusConfig = {
+      defaultDuration: 5000, // 5 seconds
+      maxDuration: 30000,    // 30 seconds
+      maxMessageLength: 200  // characters
+    };
+
+
     this.chatManager.initialize().then(() => {
       console.log("[WebSocketManager] Chat manager initialized successfully");
     }).catch(err => {
@@ -86,22 +97,25 @@ export class WebSocketManager {
   }
 
   validateRequest(req) {
-    const pathParts = req.url.split("/");
+    const pathParts = req.url.split("/").filter(part => part.length > 0);
     console.log("[WebSocketManager] Connection URL parts:", pathParts);
 
-    if (pathParts[1] !== "chatmon") {
-      console.log("[WebSocketManager] Invalid path:", req.url);
-      return { isValid: false };
+    // More flexible validation that looks for the channel as the last part
+    if (pathParts.length === 0) {
+        console.log("[WebSocketManager] Invalid path (empty):", req.url);
+        return { isValid: false };
     }
 
-    const channel = pathParts[3];
+    // The channel should be the last non-empty part of the path
+    const channel = pathParts[pathParts.length - 1];
+    
     if (!channel || !/^[a-zA-Z0-9_]{4,25}$/.test(channel)) {
-      console.log("[WebSocketManager] Invalid channel name:", channel);
-      return { isValid: false };
+        console.log("[WebSocketManager] Invalid channel name:", channel);
+        return { isValid: false };
     }
 
     return { isValid: true, channel };
-  }
+}
 
   checkRateLimit(ip) {
     const now = Date.now();
@@ -235,6 +249,124 @@ export class WebSocketManager {
     });
   }
 
+  sendStatusMessage(channel, message, options = {}) {
+    if (!this.channelClients.has(channel)) {
+      console.log("[WebSocketManager] Attempted to send status to non-existent channel:", channel);
+      return false;
+    }
+
+    const duration = Math.min(
+      options.duration || this.statusConfig.defaultDuration,
+      this.statusConfig.maxDuration
+    );
+
+    const statusMessage = {
+      type: 'status',
+      content: typeof message === 'string' ? 
+        message.slice(0, this.statusConfig.maxMessageLength) : message,
+      timestamp: Date.now()
+    };
+
+    // Add to queue if there's an active message
+    if (this.statusMessageTimers.has(channel)) {
+      if (!this.statusMessageQueue.has(channel)) {
+        this.statusMessageQueue.set(channel, []);
+      }
+      this.statusMessageQueue.get(channel).push({message: statusMessage, duration});
+      return true;
+    }
+
+    this._displayStatusMessage(channel, statusMessage, duration);
+    return true;
+  }
+
+  // Private method to display status message and handle queue
+  _displayStatusMessage(channel, statusMessage, duration) {
+    const clients = this.channelClients.get(channel);
+    if (!clients) return;
+
+    // Send status message to all clients in channel
+    const messageStr = JSON.stringify({
+      type: 'status_update',
+      data: statusMessage
+    });
+
+    clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(messageStr);
+        } catch (error) {
+          console.error("[WebSocketManager] Error sending status to client:", error);
+        }
+      }
+    });
+
+    // Set timer to clear status and handle queue
+    const timerId = setTimeout(() => {
+      this.statusMessageTimers.delete(channel);
+      
+      // Check queue for next message
+      const queue = this.statusMessageQueue.get(channel);
+      if (queue && queue.length > 0) {
+        const next = queue.shift();
+        if (queue.length === 0) {
+          this.statusMessageQueue.delete(channel);
+        }
+        this._displayStatusMessage(channel, next.message, next.duration);
+      } else {
+        // Send clear status message
+        const clearMessage = JSON.stringify({
+          type: 'status_update',
+          data: { type: 'status', content: null }
+        });
+        
+        clients.forEach(client => {
+          if (client.readyState === WebSocket.OPEN) {
+            try {
+              client.send(clearMessage);
+            } catch (error) {
+              console.error("[WebSocketManager] Error clearing status:", error);
+            }
+          }
+        });
+      }
+    }, duration);
+
+    this.statusMessageTimers.set(channel, timerId);
+  }
+
+  // Method to clear all status messages for a channel
+  clearChannelStatus(channel) {
+    // Clear any pending timers
+    if (this.statusMessageTimers.has(channel)) {
+      clearTimeout(this.statusMessageTimers.get(channel));
+      this.statusMessageTimers.delete(channel);
+    }
+
+    // Clear the queue
+    this.statusMessageQueue.delete(channel);
+
+    // Send clear message to all clients
+    const clients = this.channelClients.get(channel);
+    if (clients) {
+      const clearMessage = JSON.stringify({
+        type: 'status_update',
+        data: { type: 'status', content: null }
+      });
+
+      clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+          try {
+            client.send(clearMessage);
+          } catch (error) {
+            console.error("[WebSocketManager] Error clearing status:", error);
+          }
+        }
+      });
+    }
+  }
+
+
   getClientIP(req) {
     return req.headers['cf-connecting-ip'] || 
            req.headers['x-forwarded-for']?.split(',')[0].trim() || 
@@ -244,6 +376,12 @@ export class WebSocketManager {
   destroy() {
     clearInterval(this.heartbeat);
     this.wss.close();
+    // Clear all status message timers
+    for (const [channel, timerId] of this.statusMessageTimers) {
+      clearTimeout(timerId);
+    }
+    this.statusMessageTimers.clear();
+    this.statusMessageQueue.clear();
     // Cleanup all connections
     this.channelClients.clear();
     this.connectionTracker.clear();
