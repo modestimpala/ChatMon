@@ -2,6 +2,11 @@
 
 A web-based Twitch chat viewer with support for BTTV, FFZ, and 7TV emotes.
 
+# [Demo](https://chatmon-95d7cfb9cabd.herokuapp.com/ChatMon/northernlion)
+
+![image](https://github.com/user-attachments/assets/cfa5d986-26a5-4322-93d7-8aee7cb1c515)
+
+
 ## Features
 
 - Real-time chat monitoring
