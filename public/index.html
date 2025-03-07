@@ -10,33 +10,81 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: monospace;
+            font-family: 'Courier New', monospace;
+        }
+
+        @keyframes scanline {
+            0% {
+                transform: translateY(0%);
+            }
+
+            100% {
+                transform: translateY(100%);
+            }
         }
 
         body {
-            background-color: #000;
-            color: #00FF00;
+            background-color: #1a1a1a;
+            color: #ffa500;
             height: 100vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            padding: 5px;
         }
 
         #chat-container {
             flex: 1;
-            border: 4px solid #00FF00;
-            margin: 1rem;
-            overflow: hidden;
+            border: 2px solid #ff8c00;
+            box-shadow: 0 0 15px rgba(255, 140, 0, 0.3);
             position: relative;
             display: grid;
             grid-template-rows: auto 1fr;
+            background: #000000;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #chat-container::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(0deg,
+                    rgba(255, 140, 0, 0.03),
+                    rgba(255, 140, 0, 0.03) 1px,
+                    transparent 1px,
+                    transparent 2px);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #chat-container::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(255, 140, 0, 0.05),
+                    transparent 3px);
+            animation: scanline 8s linear infinite;
+            pointer-events: none;
+            z-index: 2;
         }
 
         #status-bar {
-            border-bottom: 4px solid #00FF00;
+            border-bottom: 2px solid #ff8c00;
             padding: 0.5rem;
             font-weight: bold;
             font-size: 1.125rem;
+            text-shadow: 0 0 8px #ff8c00;
+            background: rgba(20, 10, 0, 0.9);
+            color: #ffd700;
+            z-index: 3;
+            position: relative;
         }
 
         #messages {
@@ -45,6 +93,8 @@
             grid-auto-rows: min-content;
             align-content: end;
             overflow: hidden;
+            position: relative;
+            z-index: 3;
         }
 
         .message {
@@ -54,10 +104,20 @@
             overflow-wrap: break-word;
             max-width: 100%;
             flex-shrink: 0;
+            text-shadow: 0 0 5px currentColor;
+        }
+
+        .message:nth-child(even) {
+            background: rgba(255, 140, 0, 0.05);
+            color: #ffd700;
+        }
+
+        .message:nth-child(odd) {
+            color: #ff8c00;
         }
 
         .message:hover {
-            background-color: rgba(0, 255, 0, 0.1);
+            background: rgba(255, 140, 0, 0.1);
         }
 
         .badge {
@@ -66,7 +126,7 @@
             height: 18px;
             margin: 0 2px;
             vertical-align: middle;
-            flex-shrink: 0;
+            filter: brightness(1.1) sepia(0.4) hue-rotate(-20deg);
         }
 
         .emote {
@@ -74,31 +134,37 @@
             vertical-align: middle;
             margin: 0 2px;
             max-height: 18px;
-            object-fit: contain;
-            flex-shrink: 0;
+            filter: sepia(0.4) hue-rotate(-20deg);
         }
 
         .username {
             font-weight: bold;
             white-space: nowrap;
+            text-shadow: 0 0 5px currentColor;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.8;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        #status-bar::after {
+            content: "█";
+            margin-left: 5px;
+            animation: pulse 1s infinite;
         }
 
         ::-webkit-scrollbar {
-            width: 16px;
-            height: 16px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #000000;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #FFFFFF;
-            border: 4px solid #000000;
-        }
-
-        ::-webkit-scrollbar-corner {
-            background: #000000;
+            display: none;
         }
     </style>
 </head>
@@ -127,40 +193,60 @@
 
         ChatViewer.prototype.setupWebSocket = function () {
             var pathParts = window.location.pathname.split('/');
-            if (pathParts[1] !== 'chatmon') {
-                this.statusBar.textContent = 'Error: Invalid URL format';
+
+            // Extract channel name from the URL
+            // If URL is like /chatmon/channelname
+            var channelIndex = -1;
+            
+            for (var i = 0; i < pathParts.length; i++) {
+                if (pathParts[i].toLowerCase() === 'chatmon') {
+                    channelIndex = i;
+                    break;
+                }
+            }
+            
+            if (channelIndex === -1 || channelIndex === pathParts.length - 1) {
+                // The path doesn't contain 'chatmon' or 'chatmon' is the last segment
+                this.statusBar.textContent = 'Error: Invalid URL format. Use /chatmon/channelname';
                 return;
             }
-
-            var channelName = pathParts[2] ? pathParts[2].toLowerCase() : '';
-            if (!channelName) {
+            
+            // Store the channel name as a class property
+            this.channelName = pathParts[channelIndex + 1].toLowerCase();
+            
+            if (!this.channelName) {
                 this.statusBar.textContent = 'Error: No channel specified';
                 return;
             }
 
             // Additional validation if needed
-            if (!/^[a-z0-9_]+$/.test(channelName)) {
+            if (!/^[a-z0-9_]+$/.test(this.channelName)) {
                 this.statusBar.textContent = 'Error: Invalid channel name';
                 return;
             }
 
-
             var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            var wsUrl = protocol + '//' + window.location.host + '/chatmon/ws/' + channelName;
+            
+            var wsUrl = protocol + '//' + window.location.host + '/chatmon/ws/' + this.channelName;
 
             this.ws = new WebSocket(wsUrl);
             console.log('WebSocket URL:', wsUrl);
             var self = this; // Preserve context for callbacks
             this.ws.onopen = function () {
                 console.log('WebSocket connected successfully');
-
-                self.statusBar.textContent = 'Connected to ' + channelName + "'s chat";
+                self.statusBar.textContent = 'Connected to ' + self.channelName + "'s chat";
                 self.reconnectAttempts = 0;
             };
 
             this.ws.onmessage = function (event) {
-                var message = JSON.parse(event.data);
-                self.addMessage(message);
+                var data = JSON.parse(event.data);
+
+                if (data.type === 'status_update') {
+                    self.handleStatusUpdate(data.data);
+                } else {
+                    // Regular chat message
+                    self.addMessage(data);
+                }
             };
 
             this.ws.onclose = function () {
@@ -235,6 +321,27 @@
             // Keep only the last 11 messages
             while (this.messagesContainer.children.length > 11) {
                 this.messagesContainer.removeChild(this.messagesContainer.firstChild);
+            }
+        };
+
+        ChatViewer.prototype.handleStatusUpdate = function (statusData) {
+            if (!statusData.content) {
+                // Reset status bar to default connected message
+                this.statusBar.textContent = 'Connected to ' + this.channelName + "'s chat";
+                this.statusBar.style.backgroundImage = 'none';
+                return;
+            }
+
+            if (typeof statusData.content === 'string') {
+                // Text status message
+                this.statusBar.textContent = statusData.content;
+            } else if (statusData.content.type === 'image') {
+                // Image status message
+                this.statusBar.textContent = statusData.content.text || '';
+                this.statusBar.style.backgroundImage = `url(${statusData.content.url})`;
+                this.statusBar.style.backgroundSize = 'contain';
+                this.statusBar.style.backgroundPosition = 'right center';
+                this.statusBar.style.backgroundRepeat = 'no-repeat';
             }
         };
 
