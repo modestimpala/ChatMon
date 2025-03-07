@@ -27,16 +27,10 @@ export class BTTVProvider extends BaseEmoteProvider {
       }
 
       const emotes = await response.json();
-      console.log("[BTTV] Raw global emotes response:", emotes);
-      
+
       this.globalEmotes = this.parseGlobalEmotes(emotes);
       console.log("[BTTV] Global emotes loaded:", {
-        count: this.globalEmotes.size,
-        emotes: Array.from(this.globalEmotes.entries()).map(([code, emote]) => ({
-          code,
-          id: emote.id,
-          url: emote.imageSet['1x']
-        }))
+        count: this.globalEmotes.size
       });
     } catch (error) {
       console.error("[BTTV] Error initializing provider:", error);
@@ -67,19 +61,13 @@ export class BTTVProvider extends BaseEmoteProvider {
       }
 
       const data = await response.json();
-      console.log("[BTTV] Raw channel emotes response:", data);
-      
+     
       const emotes = this.parseChannelEmotes(data);
       this.channelEmotes.set(channelId, emotes);
       
       console.log("[BTTV] Channel emotes loaded:", {
         channelId,
-        count: emotes.size,
-        emotes: Array.from(emotes.entries()).map(([code, emote]) => ({
-          code,
-          id: emote.id,
-          url: emote.imageSet['1x']
-        }))
+        count: emotes.size
       });
       
       return emotes;
@@ -98,7 +86,6 @@ export class BTTVProvider extends BaseEmoteProvider {
     const emotes = new Map();
 
     for (const jsonEmote of jsonEmotes) {
-      console.log("[BTTV] Parsing global emote:", jsonEmote);
       const emote = this.createEmote(jsonEmote, {
         isGlobal: true,
         tooltip: `${jsonEmote.code}<br>Global BetterTTV Emote`,
@@ -120,7 +107,7 @@ export class BTTVProvider extends BaseEmoteProvider {
 
     // Parse channel emotes
     for (const jsonEmote of [...(jsonRoot.channelEmotes || []), ...(jsonRoot.sharedEmotes || [])]) {
-      console.log("[BTTV] Parsing channel emote:", jsonEmote);
+      //console.log("[BTTV] Parsing channel emote:", jsonEmote);
       const emote = this.createEmote(jsonEmote, {
         isGlobal: false,
         tooltip: this.createChannelEmoteTooltip(jsonEmote, channelName),
@@ -147,13 +134,6 @@ export class BTTVProvider extends BaseEmoteProvider {
       isGlobal,
     };
 
-    console.log("[BTTV] Created emote:", {
-      code: emote.code,
-      id: emote.id,
-      isGlobal,
-      urls: emote.imageSet
-    });
-
     return emote;
   }
 
@@ -162,13 +142,7 @@ export class BTTVProvider extends BaseEmoteProvider {
     const type = author ? "Shared" : "Channel";
     const authorName = author || channelName;
     const tooltip = `${jsonEmote.code}<br>${type} BetterTTV Emote<br>By: ${authorName}`;
-    
-    console.log("[BTTV] Created tooltip:", {
-      emoteCode: jsonEmote.code,
-      type,
-      author: authorName,
-      tooltip
-    });
+
 
     return tooltip;
   }

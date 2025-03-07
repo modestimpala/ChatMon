@@ -30,12 +30,7 @@ export class FFZProvider extends BaseEmoteProvider {
       const json = await response.json();
       this.globalEmotes = this.parseGlobalEmotes(json);
       console.log("[FFZ] Global emotes loaded:", {
-        count: this.globalEmotes.size,
-        emotes: Array.from(this.globalEmotes.entries()).map(([code, emote]) => ({
-          code,
-          id: emote.id,
-          url: emote.imageSet['1x']
-        }))
+        count: this.globalEmotes.size
       });
     } catch (error) {
       console.error("[FFZ] Error initializing provider:", error);
