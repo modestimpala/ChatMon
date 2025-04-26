@@ -137,6 +137,13 @@
             filter: sepia(0.4) hue-rotate(-20deg);
         }
 
+        .emote-wide {
+            max-width: none !important; /* Override any other max-width */
+            width: auto !important;
+            height: 18px !important; /* Keep height consistent */
+            max-height: 18px;
+        }
+
         .username {
             font-weight: bold;
             white-space: nowrap;
@@ -275,12 +282,23 @@
 
         ChatViewer.prototype.getEmoteUrl = function (emote) {
             // Handle different emote providers
-            if (emote.provider !== 'twitch') {
-                return emote.imageSet['1x']; // Use provided image set
-            } else {
-                // Default Twitch emote handling
+            if (emote.provider === 'twitch') {
                 return 'https://static-cdn.jtvnw.net/emoticons/v2/' + emote.emoteId +
                     '/default/dark/1.0';
+            } else if (emote.imageSet) {
+                // Try to get the best available size for non-Twitch emotes
+                if (emote.imageSet['1x']) {
+                    return emote.imageSet['1x'];
+                } else if (emote.imageSet['2x']) {
+                    return emote.imageSet['2x'];
+                } else {
+                    // Fallback to first available size
+                    const firstKey = Object.keys(emote.imageSet)[0];
+                    return firstKey ? emote.imageSet[firstKey] : null;
+                }
+            } else {
+                console.warn('Emote has no valid image URL:', emote);
+                return null; // Will cause the image to display as broken
             }
         };
 
@@ -366,6 +384,18 @@
                 // Add emote
                 var emoteImg = document.createElement('img');
                 emoteImg.className = 'emote';
+                
+                // Apply wide emote class if the emote is wide
+                if (emote.isWide || (emote.aspectRatio && emote.aspectRatio > 1.5)) {
+                    emoteImg.className += ' emote-wide';
+                    
+                    // Calculate width based on aspect ratio while maintaining height
+                    if (emote.aspectRatio) {
+                        var width = 18 * emote.aspectRatio;
+                        emoteImg.style.width = width + 'px';
+                    }
+                }
+
                 emoteImg.src = this.getEmoteUrl(emote);
                 emoteImg.alt = emote.code || content.slice(emote.start, emote.end + 1);
 

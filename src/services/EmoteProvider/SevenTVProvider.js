@@ -106,37 +106,67 @@ export class SevenTVProvider extends BaseEmoteProvider {
   }
 
   createEmote(activeEmote, emoteData, isGlobal) {
-    const host = emoteData.host;
-    const files = host.files.filter(f => f.format === "WEBP");
-    const imageSet = {};
-
-    // Create image set from files
-    for (const file of files) {
-      const size = Math.floor(file.width / 28) + "x";
-      imageSet[size] = SEVENTV_API.CDN(host.url, file.name);
-    }
-
-    const owner = emoteData.owner || {};
-    const isZeroWidth = (activeEmote.flags & (1 << 0)) !== 0; // ZeroWidth flag
-
-    const emote = {
-      id: activeEmote.id,
-      code: activeEmote.name,
-      imageSet,
-      baseSize: EMOTE_BASE_SIZE,
-      tooltip: this.createEmoteTooltip(
-        activeEmote.name,
-        owner.display_name || "",
-        isGlobal
-      ),
-      pageUrl: SEVENTV_API.EMOTE_PAGE(activeEmote.id),
-      provider: "7tv",
-      isGlobal,
-      zeroWidth: isZeroWidth,
-    };
-
-    return emote;
+      const host = emoteData.host;
+      const files = host.files;
+      const imageSet = {};
+      
+      // Track dimensions for wide emote detection
+      let maxWidth = 0;
+      let maxHeight = 0;
+      
+      // First prioritize WEBP files
+      const webpFiles = files.filter(f => f.format === "WEBP");
+      const filesToUse = webpFiles.length > 0 ? webpFiles : files;
+      
+      for (const file of filesToUse) {
+          const sizeMultiplier = Math.floor(file.width / 28);
+          const sizeKey = sizeMultiplier + "x";
+          
+          // Update max dimensions
+          if (file.width > maxWidth) {
+              maxWidth = file.width;
+              maxHeight = file.height;
+          }
+          
+          imageSet[sizeKey] = SEVENTV_API.CDN(host.url, file.name);
+      }
+      
+      // Ensure 1x is available
+      if (!imageSet['1x'] && Object.keys(imageSet).length > 0) {
+          const firstKey = Object.keys(imageSet)[0];
+          imageSet['1x'] = imageSet[firstKey];
+      }
+      
+      const aspectRatio = maxHeight > 0 ? maxWidth / maxHeight : 1;
+      const isWide = aspectRatio > 1.8;
+      
+      const owner = emoteData.owner || {};
+      const isZeroWidth = (activeEmote.flags & (1 << 0)) !== 0;
+      
+      
+      const emote = {
+          id: activeEmote.id,
+          code: activeEmote.name,
+          imageSet,
+          baseSize: EMOTE_BASE_SIZE,
+          tooltip: this.createEmoteTooltip(
+              activeEmote.name,
+              owner.display_name || "",
+              isGlobal
+          ),
+          pageUrl: SEVENTV_API.EMOTE_PAGE(activeEmote.id),
+          provider: "7tv",
+          isGlobal,
+          zeroWidth: isZeroWidth,
+          aspectRatio: aspectRatio,
+          isWide: isWide,
+          width: maxWidth,
+          height: maxHeight
+      };
+      
+      return emote;
   }
+  
 
   createEmoteTooltip(name, author, isGlobal) {
     const type = isGlobal ? "Global" : "Channel";
@@ -150,54 +180,44 @@ export class SevenTVProvider extends BaseEmoteProvider {
     const emotes = [];
     const words = message.split(" ");
     const channelEmotes = this.channelEmotes.get(channelId) || new Map();
-
+    
     let currentIndex = 0;
     for (let i = 0; i < words.length; i++) {
       const word = words[i];
       const globalEmote = this.globalEmotes.get(word);
       const channelEmote = channelEmotes.get(word);
       const emote = globalEmote || channelEmote;
-
+      
       if (emote) {
         const startIndex = message.indexOf(word, currentIndex);
         const endIndex = startIndex + word.length - 1;
         currentIndex = startIndex + word.length;
-
-        console.log("[7TV] Found emote in message:", {
-          word,
-          isGlobal: !!globalEmote,
-          emoteId: emote.id,
-          emoteName: emote.code,
-          position: `${startIndex}-${endIndex}`,
-        });
-
+        
+        // Handle zero-width emotes specially
+        const position = emote.zeroWidth ? startIndex : startIndex;
+        
         emotes.push({
           id: emote.id,
           code: emote.code,
           provider: "7tv",
-          start: startIndex,
-          end: endIndex,
+          start: position,
+          end: emote.zeroWidth ? position : endIndex, // Zero-width emotes have same start/end
           imageSet: emote.imageSet,
           baseSize: emote.baseSize,
           tooltip: emote.tooltip,
           pageUrl: emote.pageUrl,
           zeroWidth: emote.zeroWidth,
+          aspectRatio: emote.aspectRatio,
+          isWide: emote.isWide,
+          width: emote.width,
+          height: emote.height
         });
       }
     }
-
-    console.log("[7TV] Parsed message results:", {
-      messageLength: message.length,
-      wordsCount: words.length,
-      emotesFound: emotes.length,
-      emotes: emotes.map((e) => ({
-        code: e.code,
-        position: `${e.start}-${e.end}`,
-      })),
-    });
-
+    
     return emotes;
   }
+  
 
   async updateChannelEmotes(channelId) {
     console.log("[7TV] Updating channel emotes:", channelId);
