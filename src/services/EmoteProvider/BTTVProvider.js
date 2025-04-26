@@ -42,7 +42,6 @@ export class BTTVProvider extends BaseEmoteProvider {
     console.log("[BTTV] Getting emotes for channel:", channelId);
     
     if (this.channelEmotes.has(channelId)) {
-      console.log("[BTTV] Returning cached emotes for channel:", channelId);
       return this.channelEmotes.get(channelId);
     }
 
@@ -148,12 +147,6 @@ export class BTTVProvider extends BaseEmoteProvider {
   }
 
   parseMessage(message, channelId) {
-        console.log("[BTTV] Parsing message:", {
-            message,
-            channelId,
-            globalEmotesCount: this.globalEmotes.size,
-            channelEmotesCount: this.channelEmotes.get(channelId)?.size || 0
-        });
 
         const emotes = [];
         const words = message.split(" ");
@@ -174,13 +167,6 @@ export class BTTVProvider extends BaseEmoteProvider {
                 // Update currentIndex to continue searching from after this word
                 currentIndex = startIndex + word.length;
 
-                console.log("[BTTV] Found emote in message:", {
-                    word,
-                    isGlobal: !!globalEmote,
-                    emoteId: emote.id,
-                    emoteName: emote.code,
-                    position: `${startIndex}-${endIndex}`
-                });
 
                 emotes.push({
                     id: emote.id,
@@ -196,15 +182,6 @@ export class BTTVProvider extends BaseEmoteProvider {
             }
         }
 
-        console.log("[BTTV] Parsed message results:", {
-            messageLength: message.length,
-            wordsCount: words.length,
-            emotesFound: emotes.length,
-            emotes: emotes.map(e => ({
-                code: e.code,
-                position: `${e.start}-${e.end}`
-            }))
-        });
 
         return emotes;
     }
