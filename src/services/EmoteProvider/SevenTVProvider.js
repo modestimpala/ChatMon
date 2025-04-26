@@ -42,7 +42,6 @@ export class SevenTVProvider extends BaseEmoteProvider {
     console.log("[7TV] Getting emotes for channel:", channelId);
 
     if (this.channelEmotes.has(channelId)) {
-      console.log("[7TV] Returning cached emotes for channel:", channelId);
       return this.channelEmotes.get(channelId);
     }
 
@@ -148,13 +147,6 @@ export class SevenTVProvider extends BaseEmoteProvider {
   }
 
   parseMessage(message, channelId) {
-    console.log("[7TV] Parsing message:", {
-      message,
-      channelId,
-      globalEmotesCount: this.globalEmotes.size,
-      channelEmotesCount: this.channelEmotes.get(channelId)?.size || 0,
-    });
-
     const emotes = [];
     const words = message.split(" ");
     const channelEmotes = this.channelEmotes.get(channelId) || new Map();

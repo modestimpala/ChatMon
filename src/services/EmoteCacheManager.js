@@ -23,7 +23,6 @@ export class EmoteCacheManager {
             
             // If cache hasn't expired, return the cached data
             if (now - cacheEntry.timestamp < this.cacheDuration) {
-                console.log("[Cache] Returning cached emotes for channel:", channelId);
                 return cacheEntry.data;
             } else {
                 console.log("[Cache] Cache expired for channel:", channelId);
